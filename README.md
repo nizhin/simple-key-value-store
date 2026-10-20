@@ -9,7 +9,7 @@ The server listens locally at http://127.0.0.1:8080. Keys and values are strings
 Build and run Go version with Docker
 ```sh
 docker build -t simple-key-value-store .
-docker run --rm -p 127.0.0.1:8080:8080 simple-key-value-store
+docker run --rm -p 127.0.0.1:8080:8080 -v kv-data:/data simple-key-value-store
 ```
 
 i just made compose easier.
@@ -42,9 +42,14 @@ curl -i -X DELETE http://127.0.0.1:8080/name
 PUT and DELETE return 204 on success. Missing keys return 404; invalid input
 returns 400; unsupported methods return 405.
 
-Data stays in memory and is lost when the server stops. A mutex protects the
-store during concurrent requests. Operations are logged with timestamps.
-Press Ctrl+C to stop.
+Data is stored in SQLite at `data/store.db`. Set the `DATA_FILE` environment
+variable to choose another database path. The `kv` table contains a primary-key
+`key` column and a non-null `value` column, both strings.
+
+Concurrent HTTP requests share one database connection
+Docker uses `/data/store.db`; the named volume in Compose preserves it across
+container recreation and `docker compose down`. `docker compose down -v` deletes
+the volume and its data.
 
 Run tests with the race detector:
 ```sh
@@ -66,16 +71,18 @@ python3 benchmark.py
 
 ## Coding Assignment 1: Designing a Simple Single-Server Key-Value Store
 - [x] Server implementation
-  - Go's `net/http` serves requests on localhost:8080. A `map[string]string` stores values by URL key. PUT/POST stores JSON values, GET retrieves them, and DELETE removes them.
+  - Go's `net/http` serves requests on localhost:8080. SQLite stores string values by URL key. PUT/POST accepts JSON values, GET retrieves them, and DELETE removes them.
 - [x] Concurrent requests
-  - The HTTP server handles concurrent connections. `sync.RWMutex` protects the map: GET uses a shared read lock; writes and deletes use an exclusive lock.
-- [ ] Persistence
+  - The HTTP server handles concurrent connections. One shared SQL connection serializes database operations; atomic upserts and deletes handle concurrent changes to the same key.
+- [x] Persistence
+  - SQLite transactions and rollback journaling preserve writes and deletes across restarts.
 - [x] Error handling
   - `http.Error` returns explanations with 400 for invalid input, 404 for missing keys, and 405 for unsupported methods. Invalid writes leave the store unchanged; startup failures are logged.
 - [x] Logging
   - `log.Printf` records attempted operations with method, key, and timestamp in the terminal. The listening address is logged at startup.
 
-Tests cover operations, errors, and 30 goroutines accessing the same key.
+Tests cover operations, database errors, restart persistence, concurrent writes,
+and 30 goroutines accessing the same key.
 The race detector checks for unsafe concurrent memory access during tests.
 
 `benchmark.py` uses three threads for 900 POST/GET/DELETE requests, verifies
