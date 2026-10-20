@@ -1,97 +1,103 @@
-import json
 import threading
+import queue
+import requests
 import time
-import urllib.error
-import urllib.request
+import random
 
+# The base URL of the Flask server
+BASE_URL = 'http://127.0.0.1:8080'
 
-BASE_URL = "http://127.0.0.1:8080"
+# Configure the number of threads and operations
 NUM_THREADS = 3
-KEYS_PER_THREAD = 100
-PRINT_INTERVAL = 3
-REQUEST_TIMEOUT = 5
+OPS_PER_THREAD = 100
+PRINT_INTERVAL = 3  # Interval for printing intermediate results
 
+# Queues for managing operations and latencies
+operations_queue = queue.Queue()
+latencies_queue = queue.Queue()
 
-def kv_store_operation(method, key, value):
-    data = json.dumps({"value": value}).encode() if method == "POST" else None
-    request = urllib.request.Request(
-        f"{BASE_URL}/{key}",
-        data=data,
-        headers={"Content-Type": "application/json"},
-        method=method,
-    )
+# Synchronize the starting of threads
+start_event = threading.Event()
+
+# Client operation function
+def kv_store_operation(op_type, key, value=None):
     try:
-        with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT) as response:
-            if method == "GET" and json.load(response) != {"value": value}:
-                raise ValueError("retrieved value does not match stored value")
+        if op_type == 'set':
+            response = requests.post(f"{BASE_URL}/{key}", json={'value': value})
+        elif op_type == 'get':
+            response = requests.get(f"{BASE_URL}/{key}")
+        else:
+            raise ValueError("Invalid operation type")
+        response.raise_for_status()  # This will raise an error for non-2xx responses
         return True
-    except (urllib.error.URLError, OSError, ValueError) as error:
-        print(f"Error during {method} for '{key}': {error}")
+    except Exception as e:
+        print(f"Error during {op_type} operation for key '{key}': {e}")
         return False
 
+# Worker thread function
+def worker_thread():
+    while not start_event.is_set():
+        # Wait until all threads are ready to start
+        pass
 
-def main():
-    results = []
-    results_lock = threading.Lock()
-    start_event = threading.Event()
-    stop_event = threading.Event()
+    while not operations_queue.empty():
+        op, key, value = operations_queue.get()
+        start_time = time.time()
+        if kv_store_operation(op, key, value):
+            latency = time.time() - start_time
+            latencies_queue.put(latency)
 
-    def worker(worker_id):
-        start_event.wait()
-        for i in range(KEYS_PER_THREAD):
-            key = f"benchmark_{worker_id}_{i}"
-            value = f"value_{worker_id}_{i}"
-            for method in ("POST", "GET", "DELETE"):
-                started = time.perf_counter()
-                success = kv_store_operation(method, key, value)
-                latency = time.perf_counter() - started
-                with results_lock:
-                    results.append((latency, success))
+# Monitoring thread function
+def monitor_performance():
+    last_print = time.time()
+    while True:
+        time.sleep(PRINT_INTERVAL)
+        current_time = time.time()
+        elapsed_time = current_time - last_print
+        latencies = []
+        while not latencies_queue.empty():
+            latencies.append(latencies_queue.get())
 
-    def monitor():
-        last_count = 0
-        last_time = started
-        while not stop_event.wait(PRINT_INTERVAL):
-            with results_lock:
-                samples = results[last_count:]
-                last_count = len(results)
-            now = time.perf_counter()
-            if samples:
-                throughput = sum(success for _, success in samples) / (now - last_time)
-                latency = sum(latency for latency, _ in samples) / len(samples)
-                print(
-                    f"[Last {PRINT_INTERVAL} seconds] "
-                    f"Successful throughput: {throughput:.2f} ops/sec, "
-                    f"Avg latency (all attempts): {latency:.5f} sec/op"
-                )
-            last_time = now
+        if latencies:
+            avg_latency = sum(latencies) / len(latencies)
+            throughput = len(latencies) / elapsed_time
+            print(f"[Last {PRINT_INTERVAL} seconds] Throughput: {throughput:.2f} ops/sec, "
+                  f"Avg Latency: {avg_latency:.5f} sec/ops")
+        last_print = time.time()
 
-    threads = [threading.Thread(target=worker, args=(i,)) for i in range(NUM_THREADS)]
-    for thread in threads:
-        thread.start()
+# Populate the operation queue with mixed 'set' and 'get' requests
+for i in range(NUM_THREADS * OPS_PER_THREAD):
+    op_type = 'get' if i % 2 else 'set'
+    key = f"key_{i}"
+    value = f"value_{i}" if op_type == 'set' else None
+    operations_queue.put((op_type, key, value))
 
-    started = time.perf_counter()
-    monitoring_thread = threading.Thread(target=monitor)
-    monitoring_thread.start()
-    start_event.set()
-    for thread in threads:
-        thread.join()
-    elapsed = time.perf_counter() - started
-    stop_event.set()
-    monitoring_thread.join()
+# Create and start worker threads
+threads = [threading.Thread(target=worker_thread) for _ in range(NUM_THREADS)]
 
-    total = len(results)
-    succeeded = sum(success for _, success in results)
-    failed = total - succeeded
-    average_latency = sum(latency for latency, _ in results) / total if total else 0
-    print("\nFinal Results:")
-    print(f"Total operations: {total}")
-    print(f"Succeeded: {succeeded}, Failed: {failed}")
-    print(f"Total time: {elapsed:.2f} seconds")
-    print(f"Successful throughput: {succeeded / elapsed:.2f} operations per second")
-    print(f"Average latency (all attempts): {average_latency:.5f} seconds per operation")
-    return 1 if failed else 0
+# Start the monitoring thread
+monitoring_thread = threading.Thread(target=monitor_performance, daemon=True)
+monitoring_thread.start()
 
+# Starting benchmark
+start_time = time.time()
+start_event.set()  # Signal threads to start
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+for thread in threads:
+    thread.start()
+
+for thread in threads:
+    thread.join()
+
+# Calculate final results
+total_time = time.time() - start_time
+total_ops = NUM_THREADS * OPS_PER_THREAD * 2  # times two for 'set' and 'get'
+total_latencies = list(latencies_queue.queue)
+average_latency = sum(total_latencies) / len(total_latencies) if total_latencies else float('nan')
+throughput = total_ops / total_time
+
+print("\nFinal Results:")
+print(f"Total operations: {total_ops}")
+print(f"Total time: {total_time:.2f} seconds")
+print(f"Throughput: {throughput:.2f} operations per second")
+print(f"Average Latency: {average_latency:.5f} seconds per operation")
