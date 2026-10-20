@@ -6,6 +6,22 @@ go run .
 
 The server listens locally at http://127.0.0.1:8080. Keys and values are strings.
 
+Build and run Go version with Docker
+```sh
+docker build -t simple-key-value-store .
+docker run --rm -p 127.0.0.1:8080:8080 simple-key-value-store
+```
+
+i just made compose easier.
+```sh
+docker compose up --build -d
+```
+
+bring down with
+```sh
+docker compose down
+```
+
 Store a value (also accepts POST for the assignment benchmark):
 ```sh
 curl -i -X PUT http://127.0.0.1:8080/name \

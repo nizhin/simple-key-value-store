@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 )
@@ -64,6 +65,10 @@ func newHandler() http.Handler {
 }
 
 func main() {
-	log.Println("Server listening on http://127.0.0.1:8080")
-	log.Fatal(http.ListenAndServe("127.0.0.1:8080", newHandler()))
+	addr := os.Getenv("LISTEN_ADDR")
+	if addr == "" {
+		addr = "127.0.0.1:8080"
+	}
+	log.Printf("Server listening on %s", addr)
+	log.Fatal(http.ListenAndServe(addr, newHandler()))
 }
