@@ -41,7 +41,14 @@ python3 benchmark.py
 ```
 
 # TODO
+## Coding Assignment 2: Docker file
+- [ ] Base image
+- [ ] Application files
+- [ ] Dependencies
+- [ ] Exposure
+- [ ] Entry point
 
+## Coding Assignment 1: Designing a Simple Single-Server Key-Value Store
 - [x] Server implementation
   - Go's `net/http` serves requests on localhost:8080. A `map[string]string` stores values by URL key. PUT/POST stores JSON values, GET retrieves them, and DELETE removes them.
 - [x] Concurrent requests
