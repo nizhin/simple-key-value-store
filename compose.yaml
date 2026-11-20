@@ -1,10 +1,30 @@
+x-kv-store: &kv-store
+  build: .
+  image: simple-key-value-store:latest
+
 services:
-  kv-store:
-    build: .
+  kv-store-1:
+    <<: *kv-store
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8081:8080"
     volumes:
-      - kv-data:/data
+      - kv-data-1:/data
+
+  kv-store-2:
+    <<: *kv-store
+    ports:
+      - "127.0.0.1:8082:8080"
+    volumes:
+      - kv-data-2:/data
+
+  kv-store-3:
+    <<: *kv-store
+    ports:
+      - "127.0.0.1:8083:8080"
+    volumes:
+      - kv-data-3:/data
 
 volumes:
-  kv-data:
+  kv-data-1:
+  kv-data-2:
+  kv-data-3:

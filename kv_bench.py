@@ -4,7 +4,10 @@ Usage:
   python kv_bench.py          # set phase, then get phase (read-after-write within one run)
   python kv_bench.py set      # write only
   python kv_bench.py get      # read + verify only, e.g. after restarting the server (durability)
+
+Set BASE_URL to target a different address (default http://127.0.0.1:8080).
 """
+import os
 import queue
 import sys
 import threading
@@ -12,7 +15,7 @@ import time
 
 import requests
 
-BASE_URL = 'http://127.0.0.1:8080'
+BASE_URL = os.environ.get('BASE_URL', 'http://127.0.0.1:8080').rstrip('/')
 NUM_THREADS = 3
 OPS_PER_THREAD = 100
 NUM_KEYS = NUM_THREADS * OPS_PER_THREAD   # keys per phase

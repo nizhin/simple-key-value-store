@@ -41,7 +41,7 @@ func newPersistentHandler(path string) (*kvHandler, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	db.SetMaxOpenConns(1)
 	if _, err := db.Exec("CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL)"); err != nil {
 		db.Close()
