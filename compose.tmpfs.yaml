@@ -1,0 +1,19 @@
+# Benchmark override: keep each node's SQLite file in RAM (tmpfs) instead of on
+# Docker Desktop's single shared virtual disk.
+#
+# Why: every container on this machine shares one disk, and the disk's sync
+# (fsync) budget is shared too, which caps how much adding nodes can help writes.
+# Real nodes would run on separate machines with their own disks; tmpfs
+# approximates that by removing the shared disk from the picture.
+# Data does NOT survive a container restart in this mode. Benchmarks only.
+#
+# Usage: docker compose -f compose.yaml -f compose.tmpfs.yaml up -d
+x-ram-data: &ram-data
+  # The container runs as a non-root user (see Dockerfile), so the RAM disk must
+  # be world-writable (sticky bit, like /tmp).
+  volumes: [{type: tmpfs, target: /data, tmpfs: {mode: 0o1777}}]
+
+services:
+  kv1: *ram-data
+  kv2: *ram-data
+  kv3: *ram-data
