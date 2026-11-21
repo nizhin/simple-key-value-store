@@ -17,6 +17,7 @@ import (
 
 type kvHandler struct {
 	db *sql.DB
+	logRequests bool //turn off for benchmarks
 }
 
 func newPersistentHandler(path string) (*kvHandler, error) {
@@ -41,7 +42,7 @@ func newPersistentHandler(path string) (*kvHandler, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	db.SetMaxOpenConns(1)
 	if _, err := db.Exec("CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL)"); err != nil {
 		db.Close()
@@ -55,12 +56,19 @@ func (h *kvHandler) Close() error {
 }
 
 func (h *kvHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == "/_health" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	key := strings.TrimPrefix(r.URL.Path, "/")
 	if key == "" {
 		http.Error(w, "key is required", http.StatusBadRequest)
 		return
 	}
-	log.Printf("%s %s", r.Method, key)
+	if h.logRequests {
+		log.Printf("%s %s", r.Method, key)
+	}
 	databaseError := func(err error) {
 		log.Printf("SQLite %s %q: %v", r.Method, key, err)
 		http.Error(w, "database operation failed", http.StatusInternalServerError)
@@ -120,6 +128,10 @@ func main() {
 	if addr == "" {
 		addr = "127.0.0.1:8080"
 	}
+	if os.Getenv("ROLE") == "router" {
+		runRouter(addr)
+		return
+	}
 	path := os.Getenv("DATA_FILE")
 	if path == "" {
 		path = "data/store.db"
@@ -128,6 +140,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	handler.logRequests = os.Getenv("LOG_REQUESTS") != "false" // on unless explicitly disabled
+
 	log.Printf("Server listening on %s; SQLite data file: %s", addr, path)
 	err = http.ListenAndServe(addr, handler)
 	handler.Close()

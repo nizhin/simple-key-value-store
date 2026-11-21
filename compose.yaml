@@ -1,10 +1,29 @@
+# One image, two roles: KV node (default) or router (ROLE=router).
+x-kv-node: &kv-node       
+  build: .
+  environment:
+    LOG_REQUESTS: ${LOG_REQUESTS:-true}
 services:
-  kv-store:
-    build: .
-    ports:
-      - "127.0.0.1:8080:8080"
-    volumes:
-      - kv-data:/data
+  kv1:
+    <<: *kv-node        
+    volumes: [kv1-data:/data]
+    ports: ["127.0.0.1:8081:8080"]   
+  kv2:
+    <<: *kv-node
+    volumes: [kv2-data:/data]
+    ports: ["127.0.0.1:8082:8080"]
+  kv3:
+    <<: *kv-node
+    volumes: [kv3-data:/data]
+    ports: ["127.0.0.1:8083:8080"]
+  router:
+    <<: *kv-node
+    environment:
+      ROLE: router
+      NODES: ${NODES:-kv1:8080,kv2:8080,kv3:8080}   # override from the shell to pick the node count
+    ports: ["127.0.0.1:8080:8080"]
 
 volumes:
-  kv-data:
+  kv1-data:
+  kv2-data:
+  kv3-data:
