@@ -107,12 +107,11 @@ func (rt *router) healthCheck(interval time.Duration, failLimit int, stop <-chan
 	defer ticker.Stop()
 	for {
 		select {
-			case <-stop:
-				return
-			case <-ticker.C:
+		case <-stop:
+			return
+		case <-ticker.C:
 		}
-	
-	for range ticker.C { // runs once per tick
+
 		for _, node := range rt.nodes {
 			if ping(client, node) {
 				fails[node] = 0
@@ -130,8 +129,8 @@ func (rt *router) healthCheck(interval time.Duration, failLimit int, stop <-chan
 				}
 			}
 		}
+
 	}
-}
 }
 
 // ping reports whether node answers GET /_health with 200.

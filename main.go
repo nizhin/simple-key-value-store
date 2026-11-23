@@ -16,7 +16,7 @@ import (
 )
 
 type kvHandler struct {
-	db *sql.DB
+	db          *sql.DB
 	logRequests bool //turn off for benchmarks
 }
 

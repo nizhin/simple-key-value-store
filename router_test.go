@@ -4,11 +4,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
-	"testing"
-	"slices"
 	"sync/atomic"
+	"testing"
 	"time"
 )
 
@@ -137,7 +137,6 @@ func TestRouterNodeDown(t *testing.T) {
 		t.Fatalf("key still routed to dead node: X-KV-Node = %q", got)
 	}
 }
-
 
 // waitFor polls cond until it's true, failing the test after 2 seconds.
 // The checker runs in the background, so the test can't know exactly when it acts.

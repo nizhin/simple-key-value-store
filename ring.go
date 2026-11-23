@@ -75,7 +75,6 @@ func (r *Ring) Remove(node string) {
 	})
 }
 
-
 // Nodes returns the real nodes currently on the ring, sorted.
 func (r *Ring) Nodes() []string {
 	r.mu.RLock()
@@ -91,4 +90,3 @@ func (r *Ring) Nodes() []string {
 	sort.Strings(nodes)
 	return nodes
 }
-
